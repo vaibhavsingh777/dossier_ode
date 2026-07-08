@@ -14,6 +14,9 @@ const pubchemCache = new Map();
 app.use(express.json());
 app.use(express.static("public"));
 
+// Trust the reverse proxy (crucial for Render/cloud deployments so secure cookies work)
+app.set("trust proxy", 1);
+
 // Session configuration
 app.use(
   session({
