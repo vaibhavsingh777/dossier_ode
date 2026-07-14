@@ -84,12 +84,13 @@ function initDossierDashboard() {
 }
 
 function formatAsList(str) {
-  if (!str || str === "N/A") return "N/A";
+  if (!str || str === "N/A" || str === "-")
+    return '<span class="placeholder-text">-</span>';
   const items = str
     .split(";")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-  if (items.length === 0) return "N/A";
+  if (items.length === 0) return '<span class="placeholder-text">-</span>';
   if (items.length === 1) return items[0];
   return `<ul class="dossier-list" style="margin: 0; padding-left: 20px;">${items.map((item) => `<li style="margin-bottom: 4px;">${item}</li>`).join("")}</ul>`;
 }
@@ -101,9 +102,9 @@ function formatAsList(str) {
 function renderDocumentStyleDossier(data, container) {
   container.innerHTML = "";
 
-  // Helper function to handle empty fields gracefully
-  const safeData = (val, placeholder = "N/A") =>
-    val && val !== "N/A"
+  // Helper function to handle empty fields gracefully with "-"
+  const safeData = (val, placeholder = "-") =>
+    val && val !== "N/A" && val !== "-"
       ? val
       : `<span class="placeholder-text">${placeholder}</span>`;
 
@@ -119,7 +120,12 @@ function renderDocumentStyleDossier(data, container) {
       : `<span class="placeholder-text" style="font-weight: bold; font-size: 1.2rem; letter-spacing: 2px;">IMAGE</span>`;
 
   // Determine SCOMET Highlight Color
-  const scometColor = data.scomet_entry_code !== "N/A" ? "danger-text" : "";
+  const scometColor =
+    data.scomet_entry_code &&
+    data.scomet_entry_code !== "N/A" &&
+    data.scomet_entry_code !== "-"
+      ? "danger-text"
+      : "";
 
   // BIS rendering: handling array maps and graceful fallbacks
   let bisHTML;
@@ -137,7 +143,7 @@ function renderDocumentStyleDossier(data, container) {
         .join("") +
       `</ul>`;
   } else if (Array.isArray(data.bis_certifications)) {
-    bisHTML = safeData(null, "No matching BIS specification found");
+    bisHTML = safeData(null);
   } else {
     bisHTML = safeData(data.bis_license);
   }
@@ -181,7 +187,7 @@ function renderDocumentStyleDossier(data, container) {
           
           <div class="grid-cell cell-hazard">
             <strong style="color: var(--dossier-blue);">hazard class</strong><br/> 
-            <div style="margin-top: 5px;">${data.hazard_class ? formatAsList(data.hazard_class) : '<span class="placeholder-text">N/A</span>'}</div>
+            <div style="margin-top: 5px;">${data.hazard_class ? formatAsList(data.hazard_class) : '<span class="placeholder-text">-</span>'}</div>
           </div>
           
         </div>
@@ -192,19 +198,20 @@ function renderDocumentStyleDossier(data, container) {
         <div class="bottom-card card-synonyms">
           <h3>synonyms</h3>
           <div class="scrollable-area">
-            ${data.synonyms ? formatAsList(data.synonyms) : '<span class="placeholder-text">No synonyms available.</span>'}
+            ${data.synonyms ? formatAsList(data.synonyms) : '<span class="placeholder-text">-</span>'}
           </div>
         </div>
 
         <div class="bottom-card card-structures">
-          <div class="scrollable-area">
-            <h3>1. structure</h3>
+          <h3>1. structure</h3>
+          <div class="scrollable-area" style="flex-grow: 0; min-height: 60px; padding-bottom: 10px;">
             <div style="word-break: break-all; font-size: 12px;">
               <strong style="color: var(--dossier-blue);">SMILES:</strong> ${safeData(data.structure)}
             </div>
-            <br>
-            
-            <h3>2. list of struct. + geometrical isomers</h3>
+          </div>
+          
+          <h3 style="border-radius: 0; border-top: 1px solid var(--border-color);">2. list of struct. + geometrical isomers</h3>
+          <div class="scrollable-area" style="padding-top: 15px;">
             <div style="word-break: break-all; font-size: 12px;">
               <strong style="color: var(--dossier-blue);">Isomeric SMILES:</strong><br> ${safeData(data.isomeric_structure)}<br><br>
               <strong style="color: var(--dossier-blue);">Defined Stereochemistry:</strong><br> ${safeData(data.has_defined_stereochemistry)}
@@ -213,7 +220,7 @@ function renderDocumentStyleDossier(data, container) {
         </div>
 
         <div class="bottom-card card-licenses">
-          <h3>licenses and taxation section</h3>
+          <h3>licenses & taxation</h3>
           <div class="scrollable-area">
             <div>
               <strong style="color: var(--dossier-blue);">licenses:</strong>
@@ -222,7 +229,7 @@ function renderDocumentStyleDossier(data, container) {
                 <li>
                   scomet: 
                   <strong class="${scometColor}">${safeData(data.scomet_status)}</strong>
-                  ${data.scomet_caveat ? `<br><span class="subtext">${data.scomet_caveat}</span>` : ""}
+                  ${data.scomet_caveat && data.scomet_caveat !== "N/A" ? `<br><span class="subtext">${data.scomet_caveat}</span>` : ""}
                 </li>
                 <li>alcohol/poison/acid: ${safeData(data.alcohol_poison_acid_license)}</li>
               </ul>
@@ -234,7 +241,7 @@ function renderDocumentStyleDossier(data, container) {
                 <li>
                   gst%: <strong>${safeData(data.gst_rate)}</strong>
                   ${data.gst_matched_description ? `<br><span class="subtext">${data.gst_matched_description}</span>` : ""}
-                  ${data.gst_rate_exception_note && data.gst_rate_exception_note !== "N/A" ? `<br><span class="subtext danger-text"><em>Exception Note: ${data.gst_rate_exception_note}</em></span>` : ""}
+                  ${data.gst_rate_exception_note && data.gst_rate_exception_note !== "N/A" && data.gst_rate_exception_note !== "-" ? `<br><span class="subtext danger-text"><em>Exception Note: ${data.gst_rate_exception_note}</em></span>` : ""}
                 </li>
                 <br>
                 <li>basic customs duty: ${safeData(data.bcd_rate)}</li>
