@@ -10,8 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
     dossierPageContainer.innerHTML = `
             <div class="dossier-wrapper">
                 <div class="dossier-header-panel">
-                    <h2>Chemical Info Dashboard</h2>
-                    <p>Enter a valid CAS Registry Number to compile the dossier document.</p>
+                    <h2>Dashboard</h2>
+                    <p>designed with ❤️ by Vaibhav</p>
                 </div>
                 
                 <div class="dossier-control-box">
