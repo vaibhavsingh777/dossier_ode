@@ -1,7 +1,7 @@
 /**
  * dossier.js
  * Implements interactive chemical dossier tracking layouts, rendering a strict
- * 2-column document-style view showing ALL fields (empty if no data exists).
+ * 3-column document-style view showing ALL fields (empty if no data exists).
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -96,7 +96,7 @@ function formatAsList(str) {
 
 /**
  * Renders the strictly dynamic dashboard layout with the color-coded cards,
- * parsing structure images, isomers, taxation, reactivity, and BIS.
+ * parsing structure images, isomers, taxation, and BIS matching the 3-column UI.
  */
 function renderDocumentStyleDossier(data, container) {
   container.innerHTML = "";
@@ -111,20 +111,17 @@ function renderDocumentStyleDossier(data, container) {
   const timestamp = new Date().getTime();
   let imageHTML =
     data.structure_image && data.structure_image !== "N/A"
-      ? `<a href="${data.structure_image}" target="_blank" style="display: block; text-align: center;">
+      ? `<a href="${data.structure_image}" target="_blank" style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">
             <img src="${data.structure_image}?t=${timestamp}" 
-                 style="max-height: 180px; max-width: 100%; object-fit: contain; margin-bottom: 10px; border: 1px solid var(--dossier-cyan); padding: 4px; border-radius: 4px; background: white;" 
+                 style="max-height: 130px; max-width: 100%; object-fit: contain; padding: 4px; background: transparent;" 
                  alt="Chemical Structure"/>
          </a>`
-      : `<span class="placeholder-text">No structure image available</span><br><br>`;
+      : `<span class="placeholder-text" style="font-weight: bold; font-size: 1.2rem; letter-spacing: 2px;">IMAGE</span>`;
 
-  // Determine SCOMET Highlight Color (using palette Purple instead of red)
+  // Determine SCOMET Highlight Color
   const scometColor = data.scomet_entry_code !== "N/A" ? "danger-text" : "";
 
-  // BIS rendering: the engine returns bis_certifications as an array of
-  // {card_title, year, description} scraped from the BIS portal. Fall back
-  // to a plain bis_license string if that's what's present instead (older
-  // engine shape), so this doesn't silently show N/A either way.
+  // BIS rendering: handling array maps and graceful fallbacks
   let bisHTML;
   if (
     Array.isArray(data.bis_certifications) &&
@@ -145,50 +142,45 @@ function renderDocumentStyleDossier(data, container) {
     bisHTML = safeData(data.bis_license);
   }
 
-  // Reactivity & Stabilizers (PubChem PUG-View reactivity/stability text)
-  const reactivityHTML =
-    data.reactivity && data.reactivity !== "N/A"
-      ? data.reactivity.replace(/\. /g, ".<br>")
-      : `<span class="placeholder-text">N/A</span>`;
-
   const dashboardHTML = `
     <div class="dashboard-wrapper">
       
       <div class="top-card">
         <div class="top-header">
           <div class="header-block">
-            <span>${safeData(data.chemical_name, "Unknown Chemical")}</span>
+            <span>${safeData(data.chemical_name, "name of the chemical")}</span>
           </div>
           <div class="header-block" style="text-align: center;">
-            <span>HSN: ${safeData(data.hsn_code, "N/A")}</span>
-            <span style="font-size: 10px; font-weight: normal; opacity: 0.8; max-width: 250px;">
-              ${data.hsn_matched_description || ""}
-            </span>
+            <span>${safeData(data.hsn_code, "hsn code")}</span>
           </div>
           <div class="header-block" style="text-align: right;">
-            <span>CAS: ${safeData(data.cas_no, "N/A")}</span>
+            <span>${safeData(data.cas_no, "cas number")}</span>
           </div>
         </div>
         
         <div class="info-grid">
           
-          <div class="grid-cell">
-            <strong style="color: var(--dossier-blue);">IUPAC Name:</strong><br/> 
+          <div class="grid-cell cell-iupac">
+            <strong style="color: var(--dossier-blue);">iupac name</strong><br/> 
             <div style="margin-top: 5px;">${safeData(data.iupac_name)}</div>
           </div>
           
-          <div class="grid-cell">
-            <strong style="color: var(--dossier-blue);">Appearance:</strong><br/> 
+          <div class="grid-cell cell-appearance">
+            <strong style="color: var(--dossier-blue);">appearance</strong><br/> 
             <div style="margin-top: 5px;">${safeData(data.appearance)}</div>
           </div>
-          
-          <div class="grid-cell stacked-labels">
-            <div><strong style="color: var(--dossier-blue);">Mol. Formula:</strong> ${safeData(data.molecular_formula)}</div>
-            <div><strong style="color: var(--dossier-blue);">Mol. Wt.:</strong> ${safeData(data.molecular_weight)}</div>
+
+          <div class="grid-cell cell-image">
+            ${imageHTML}
           </div>
           
-          <div class="grid-cell">
-            <strong style="color: var(--dossier-blue);">Hazard Class (GHS):</strong><br/> 
+          <div class="grid-cell cell-mol stacked-labels">
+            <div><strong style="color: var(--dossier-blue);">mol. formula:</strong> ${safeData(data.molecular_formula)}</div>
+            <div><strong style="color: var(--dossier-blue);">mol. wt.:</strong> ${safeData(data.molecular_weight)}</div>
+          </div>
+          
+          <div class="grid-cell cell-hazard">
+            <strong style="color: var(--dossier-blue);">hazard class</strong><br/> 
             <div style="margin-top: 5px;">${data.hazard_class ? formatAsList(data.hazard_class) : '<span class="placeholder-text">N/A</span>'}</div>
           </div>
           
@@ -198,7 +190,7 @@ function renderDocumentStyleDossier(data, container) {
       <div class="bottom-cards-container">
         
         <div class="bottom-card card-synonyms">
-          <h3>Synonyms</h3>
+          <h3>synonyms</h3>
           <div class="scrollable-area">
             ${data.synonyms ? formatAsList(data.synonyms) : '<span class="placeholder-text">No synonyms available.</span>'}
           </div>
@@ -206,14 +198,13 @@ function renderDocumentStyleDossier(data, container) {
 
         <div class="bottom-card card-structures">
           <div class="scrollable-area">
-            <h3>1. Structure</h3>
-            ${imageHTML}
+            <h3>1. structure</h3>
             <div style="word-break: break-all; font-size: 12px;">
               <strong style="color: var(--dossier-blue);">SMILES:</strong> ${safeData(data.structure)}
             </div>
             <br>
             
-            <h3>2. Isomers & Stereochem</h3>
+            <h3>2. list of struct. + geometrical isomers</h3>
             <div style="word-break: break-all; font-size: 12px;">
               <strong style="color: var(--dossier-blue);">Isomeric SMILES:</strong><br> ${safeData(data.isomeric_structure)}<br><br>
               <strong style="color: var(--dossier-blue);">Defined Stereochemistry:</strong><br> ${safeData(data.has_defined_stereochemistry)}
@@ -222,45 +213,33 @@ function renderDocumentStyleDossier(data, container) {
         </div>
 
         <div class="bottom-card card-licenses">
-          <h3>Licenses & Taxation</h3>
+          <h3>licenses and taxation section</h3>
           <div class="scrollable-area">
             <div>
-              <strong style="color: var(--dossier-blue);">Licenses:</strong>
+              <strong style="color: var(--dossier-blue);">licenses:</strong>
               <ul>
-                <li>BIS: ${bisHTML}</li>
+                <li>bis: ${bisHTML}</li>
                 <li>
-                  SCOMET (Cat 1): 
+                  scomet: 
                   <strong class="${scometColor}">${safeData(data.scomet_status)}</strong>
                   ${data.scomet_caveat ? `<br><span class="subtext">${data.scomet_caveat}</span>` : ""}
                 </li>
-                <li>Alcohol/Poison/Acid: ${safeData(data.alcohol_poison_acid_license)}</li>
+                <li>alcohol/poison/acid: ${safeData(data.alcohol_poison_acid_license)}</li>
               </ul>
             </div>
             
             <div class="tax-section">
-              <strong style="color: var(--dossier-blue);">Taxation in India (GST):</strong>
+              <strong style="color: var(--dossier-blue);">taxation:</strong>
               <ul>
                 <li>
-                  GST %: <strong>${safeData(data.gst_rate)}</strong>
+                  gst%: <strong>${safeData(data.gst_rate)}</strong>
                   ${data.gst_matched_description ? `<br><span class="subtext">${data.gst_matched_description}</span>` : ""}
                   ${data.gst_rate_exception_note && data.gst_rate_exception_note !== "N/A" ? `<br><span class="subtext danger-text"><em>Exception Note: ${data.gst_rate_exception_note}</em></span>` : ""}
                 </li>
                 <br>
-                <li>Basic Customs Duty: ${safeData(data.bcd_rate)}</li>
-                <li>Anti Dumping Duty: ${safeData(data.anti_dumping_duty)}</li>
+                <li>basic customs duty: ${safeData(data.bcd_rate)}</li>
+                <li>anti dumping duty: ${safeData(data.anti_dumping_duty)}</li>
               </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="bottom-card card-history">
-          <div class="scrollable-area">
-            <h3>Reactivity & Stabilizers</h3>
-            <div style="font-size: 12px; margin-bottom: 6px;">
-              <strong style="color: var(--dossier-blue);">Stabilizer Mentioned:</strong> ${safeData(data.stabilizer_mentioned)}
-            </div>
-            <div style="font-size: 12px;">
-              ${reactivityHTML}
             </div>
           </div>
         </div>

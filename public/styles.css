@@ -83,9 +83,7 @@ body {
 }
 
 .error-msg {
-  color: var(
-    --dossier-purple
-  ); /* Using brand purple for errors per your SCOMET logic */
+  color: var(--dossier-purple);
   font-size: 0.9em;
   text-align: center;
   min-height: 20px;
@@ -212,19 +210,49 @@ body {
   font-size: 1.2rem;
 }
 
+/* Refined info-grid mapping table layout precisely as required */
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
-  padding: 20px;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-areas:
+    "iupac appearance image"
+    "mol hazard image";
+  padding: 0;
 }
 
 .grid-cell {
-  background: #f8f9fa;
+  background: transparent;
   padding: 15px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
   font-size: 0.95rem;
+}
+
+/* Assign area templates and refine borders for the table appearance */
+.cell-iupac {
+  grid-area: iupac;
+}
+.cell-appearance {
+  grid-area: appearance;
+}
+.cell-mol {
+  grid-area: mol;
+  border-bottom: none;
+}
+.cell-hazard {
+  grid-area: hazard;
+  border-bottom: none;
+}
+.cell-image {
+  grid-area: image;
+  border-right: none;
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
 }
 
 .stacked-labels div {
@@ -234,10 +262,10 @@ body {
   margin-bottom: 0;
 }
 
-/* Bottom Cards (2-Column Grid) */
+/* Bottom Cards (3-Column Layout from UI Requirement) */
 .bottom-cards-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
@@ -248,7 +276,7 @@ body {
   border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  height: 400px; /* Fixed height for clean grid alignment */
+  height: 400px;
 }
 
 .bottom-card h3 {
@@ -283,6 +311,27 @@ body {
   background: var(--dossier-teal);
 }
 
+/* --- Responsive Fallback Layer --- */
+@media (max-width: 900px) {
+  .info-grid,
+  .bottom-cards-container {
+    grid-template-columns: 1fr;
+    grid-template-areas: none;
+  }
+  .cell-iupac,
+  .cell-appearance,
+  .cell-image,
+  .cell-mol,
+  .cell-hazard {
+    grid-area: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .cell-hazard {
+    border-bottom: none;
+  }
+}
+
 /* --- 4. Typography & Utility Classes --- */
 .placeholder-text {
   color: #999;
@@ -291,7 +340,6 @@ body {
 }
 
 .danger-text {
-  /* You requested SCOMET highlight to use brand Purple instead of red */
   color: var(--dossier-purple);
   font-weight: 700;
 }
