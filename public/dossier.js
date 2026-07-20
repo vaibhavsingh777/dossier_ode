@@ -240,17 +240,9 @@ function renderDocumentStyleDossier(data, container) {
         </div>
 
         <div class="bottom-card card-structures">
-          <div class="card-header"><span class="field-label">1. Structure</span></div>
-          <div class="scrollable-area" style="flex-grow: 0; min-height: 60px; padding-bottom: 10px;">
-            <div style="word-break: break-all; font-size: 12px;">
-              <strong style="color: var(--dossier-blue);">SMILES:</strong> ${safeData(data.structure)}
-            </div>
-          </div>
-
-          <div class="card-header card-header-divider"><span class="field-label">2. List Of Structural &amp; Geometrical Isomers</span></div>
-          <div class="scrollable-area" style="padding-top: 15px;">
-            <div style="word-break: break-all; font-size: 12px;">
-              <strong style="color: var(--dossier-blue);">Isomeric SMILES:</strong><br> ${safeData(data.isomeric_structure)}<br><br>
+          <div class="card-header"><span class="field-label">Structural &amp; Geometrical Isomers</span></div>
+          <div class="scrollable-area">
+            <div style="word-break: break-all; font-size: 0.8rem;">
               <strong style="color: var(--dossier-blue);">Defined Stereochemistry:</strong><br> ${safeData(data.has_defined_stereochemistry)}
             </div>
           </div>

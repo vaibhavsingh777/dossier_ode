@@ -24,6 +24,14 @@
   box-sizing: border-box;
 }
 
+/* Base type scale: a small overall bump everywhere (since nearly all sizing
+   below is in rem/em), which grows a bit further on wider screens so content
+   doesn't read as small on large monitors. Still respects the user's browser
+   font-size setting since it's built from rem, not raw px/vw alone. */
+html {
+  font-size: clamp(1rem, 0.95rem + 0.35vw, 1.15rem);
+}
+
 /*
   NOTE on typography: "Aptos Narrow" ships with Windows 11 / Microsoft 365 but is not
   distributed on public web font CDNs (e.g. Google Fonts), so it can't be @import-ed.
@@ -287,7 +295,7 @@ body {
 /* --- 3. Page Body: responsive left/right margins on every screen size --- */
 .dossier-page-body {
   width: 100%;
-  max-width: 1440px;
+  max-width: 1680px;
   margin: 0 auto;
   padding: 28px clamp(16px, 5vw, 72px) 64px;
 }
@@ -525,12 +533,6 @@ body {
 .card-header {
   padding: 18px 20px 4px;
   background: var(--card-bg);
-}
-
-.card-header-divider {
-  margin-top: 6px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
 }
 
 .scrollable-area {
