@@ -1,4 +1,6 @@
 require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
 const session = require("express-session");
 const rateLimit = require("express-rate-limit");
@@ -54,6 +56,228 @@ app.post("/api/logout", (req, res) => {
 function requireAuth(req, res, next) {
   if (req.session.loggedIn) return next();
   res.status(401).json({ error: "Not authenticated" });
+}
+
+// --- HSN / GST Reference Data ---
+// gst.csv and hsn.csv are loaded once at startup and kept in memory (they're small -
+// ~4.4k and ~22k rows) so every dossier request just does an in-memory lookup instead
+// of re-reading/re-parsing a CSV on every hit.
+
+// Minimal RFC4180-style CSV parser (handles quoted fields containing commas/newlines,
+// and "" as an escaped quote) - no external dependency needed for this.
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (inQuotes) {
+      if (char === '"' && next === '"') {
+        field += '"';
+        i++;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        field += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(field);
+      field = "";
+    } else if (char === "\r") {
+      // skip - normalized below via \n
+    } else if (char === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += char;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function loadCSVAsObjects(filePath) {
+  const text = fs.readFileSync(filePath, "utf8");
+  const rows = parseCSV(text);
+  const headers = rows[0].map((h) => h.trim());
+  const objects = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].length === 1 && rows[i][0].trim() === "") continue; // trailing blank line
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = (rows[i][idx] || "").trim();
+    });
+    objects.push(obj);
+  }
+  return objects;
+}
+
+let gstRows = [];
+let hsnRows = [];
+// Index of UPPERCASE description -> matching rows, for O(1) exact-match lookups.
+let hsnByDescUpper = new Map();
+
+try {
+  gstRows = loadCSVAsObjects(path.join(__dirname, "gst.csv"));
+  hsnRows = loadCSVAsObjects(path.join(__dirname, "hsn.csv"));
+
+  for (const row of hsnRows) {
+    const descUpper = (row.HSN_Description || "").toUpperCase().trim();
+    if (!descUpper) continue;
+    if (!hsnByDescUpper.has(descUpper)) hsnByDescUpper.set(descUpper, []);
+    hsnByDescUpper.get(descUpper).push(row);
+  }
+
+  console.log(
+    `Loaded HSN/GST reference data: ${gstRows.length} GST rows, ${hsnRows.length} HSN rows.`,
+  );
+} catch (err) {
+  console.error(
+    "Failed to load gst.csv / hsn.csv (place them next to server.js):",
+    err.message,
+  );
+}
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Common American -> British spelling swaps. PubChem names/synonyms are American
+// English; Indian HSN/GST tariff text is British English (SULPHUR not SULFUR,
+// ALUMINIUM not ALUMINUM), so without this a lot of real matches get missed.
+const BRITISH_SPELLING_MAP = [
+  [/SULFUR/g, "SULPHUR"],
+  [/SULFATE/g, "SULPHATE"],
+  [/SULFIDE/g, "SULPHIDE"],
+  [/SULFITE/g, "SULPHITE"],
+  [/SULFONIC/g, "SULPHONIC"],
+  [/ALUMINUM/g, "ALUMINIUM"],
+  [/CESIUM/g, "CAESIUM"],
+];
+
+function toBritishSpelling(upperStr) {
+  let out = upperStr;
+  for (const [from, to] of BRITISH_SPELLING_MAP) out = out.replace(from, to);
+  return out;
+}
+
+// Among several matching HSN rows, prefer the most specific one - the longest
+// (most granular) code, e.g. an 8-digit tariff item over its 4-digit heading.
+function mostSpecific(matches) {
+  return matches.reduce((best, cur) =>
+    !best || cur.HSN_CD.length > best.HSN_CD.length ? cur : best,
+  );
+}
+
+// Tier A: search term is an exact (whole-string) match for an HSN description.
+// High confidence - this is the one we want whenever it's available.
+function findHsnMatchExact(searchTerm) {
+  const upper = (searchTerm || "").toUpperCase().trim();
+  if (!upper) return null;
+  const matches = hsnByDescUpper.get(upper);
+  return matches ? mostSpecific(matches) : null;
+}
+
+// Tier B: search term appears anywhere in the description as a whole word (e.g.
+// "BENZENE" would match "BENZENE, PURE" but not "DICHLOROBENZENE"). Lower confidence
+// than an exact match - a derivative's name can also contain the base chemical's name
+// as a whole word (e.g. "ethanol" inside "phenoxy ethanol") - so this is only used
+// as a fallback when no exact match exists for any candidate name.
+function findHsnMatchLoose(searchTerm) {
+  const upper = (searchTerm || "").toUpperCase().trim();
+  if (!upper) return null;
+  const wordBoundaryRegex = new RegExp(`\\b${escapeRegex(upper)}\\b`);
+  const matches = hsnRows.filter((row) =>
+    wordBoundaryRegex.test((row.HSN_Description || "").toUpperCase()),
+  );
+  return matches.length ? mostSpecific(matches) : null;
+}
+
+// Given an HSN code, find its GST rate from gst.csv. gst.csv is mostly organised at
+// the 4-digit heading level rather than full 8-digit tariff items, so we try an exact
+// code match first, then fall back to the 4-digit heading, then the 2-digit chapter.
+function findGstRate(hsnCode) {
+  if (!hsnCode) return null;
+  const heading4 = hsnCode.slice(0, 4);
+  const chapter2 = hsnCode.slice(0, 2);
+
+  const exactRow = gstRows.find((row) =>
+    (row["Corresponding HSN Code"] || "")
+      .split(",")
+      .map((c) => c.trim())
+      .includes(hsnCode),
+  );
+  if (exactRow) return exactRow["GST Rate"];
+
+  const headingRow = gstRows.find((row) => {
+    const codes = (row["Corresponding HSN Code"] || "")
+      .split(",")
+      .map((c) => c.trim());
+    return (
+      codes.some((c) => c.startsWith(heading4)) || row["GST Code"] === heading4
+    );
+  });
+  if (headingRow) return headingRow["GST Rate"];
+
+  const chapterRow = gstRows.find(
+    (row) =>
+      (row["Corresponding HSN Code"] || "").trim() === chapter2 ||
+      row["GST Code"] === chapter2,
+  );
+  if (chapterRow) return chapterRow["GST Rate"];
+
+  return null;
+}
+
+// Main entry point: given the chemical's name (and PubChem's synonym list as a
+// "; "-joined string), find the best HSN code + GST rate we can. Tries the chemical
+// name first, then each synonym, then British-spelling variants of each - exact
+// matches across all candidates before ever falling back to the looser whole-word
+// match.
+function lookupHsnAndGst(chemicalName, synonymsStr) {
+  const synonymList =
+    synonymsStr && synonymsStr !== "-"
+      ? synonymsStr.split(";").map((s) => s.trim())
+      : [];
+  const rawCandidates = [chemicalName, ...synonymList].filter(
+    (c) => c && c !== "-",
+  );
+
+  const candidates = [];
+  for (const c of rawCandidates) {
+    candidates.push(c);
+    const british = toBritishSpelling(c.toUpperCase());
+    if (british !== c.toUpperCase()) candidates.push(british);
+  }
+
+  let match = null;
+  for (const c of candidates) {
+    match = findHsnMatchExact(c);
+    if (match) break;
+  }
+  if (!match) {
+    for (const c of candidates) {
+      match = findHsnMatchLoose(c);
+      if (match) break;
+    }
+  }
+
+  if (!match) return { hsn_code: "-", gst_rate: "-" };
+
+  const rate = findGstRate(match.HSN_CD);
+  const validRate = rate && rate !== "" && rate !== "?" ? rate : "-";
+  return { hsn_code: match.HSN_CD, gst_rate: validRate };
 }
 
 // --- PUG-View JSON Helpers ---
@@ -157,6 +381,8 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
         appearance: "-",
         hazard_class: "-",
         reactivity: "-",
+        hsn_code: "-",
+        gst_rate: "-",
       };
 
       try {
@@ -247,6 +473,15 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
             );
             pubChemData.hazard_class = ghsHazards || generalHazards || "-";
           }
+
+          // Step 3: HSN code + GST rate, looked up locally from gst.csv/hsn.csv using
+          // the chemical name (and its synonyms as a fallback) - not a PubChem field.
+          const hsnGst = lookupHsnAndGst(
+            pubChemData.chemical_name,
+            pubChemData.synonyms,
+          );
+          pubChemData.hsn_code = hsnGst.hsn_code;
+          pubChemData.gst_rate = hsnGst.gst_rate;
         }
 
         // Save successfully fetched data to cache
@@ -257,8 +492,9 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
     }
 
     // --- 3. Format the response for your dossier.js UI ---
-    // Scientific data is powered by PubChem.
-    // Commercial data defaults to a placeholder to prevent frontend crashing.
+    // Scientific data is powered by PubChem. HSN/GST come from the local
+    // gst.csv/hsn.csv reference files. Remaining commercial/Indian-taxonomy fields
+    // default to a placeholder to prevent frontend crashing.
     const responseData = {
       cas_no: cas,
       chemical_name: pubChemData.chemical_name,
@@ -274,12 +510,15 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
       has_defined_stereochemistry: pubChemData.has_defined_stereochemistry,
       reactivity: pubChemData.reactivity,
 
-      // Commercial / Indian Taxonomy (not available from PubChem - to be sourced separately)
-      hsn_code: "-",
+      // HSN code + GST rate: looked up locally from gst.csv / hsn.csv
+      hsn_code: pubChemData.hsn_code,
+      gst_rate: pubChemData.gst_rate,
+
+      // Remaining commercial / Indian Taxonomy (not available from PubChem or the
+      // local CSVs - to be sourced separately)
       bis_license: "-",
       scomet_status: "-",
       alcohol_poison_acid_license: "-",
-      gst_rate: "-",
       bcd_rate: "-",
       anti_dumping_duty: "-",
       stabilizer_mentioned: "-",
