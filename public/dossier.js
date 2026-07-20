@@ -233,21 +233,21 @@ function renderDocumentStyleDossier(data, container) {
       <div class="bottom-cards-container">
 
         <div class="bottom-card card-synonyms">
-          <h3>Synonyms</h3>
+          <div class="card-header"><span class="field-label">Synonyms</span></div>
           <div class="scrollable-area">
             ${data.synonyms ? formatAsList(data.synonyms) : '<span class="placeholder-text">-</span>'}
           </div>
         </div>
 
         <div class="bottom-card card-structures">
-          <h3>1. Structure</h3>
+          <div class="card-header"><span class="field-label">1. Structure</span></div>
           <div class="scrollable-area" style="flex-grow: 0; min-height: 60px; padding-bottom: 10px;">
             <div style="word-break: break-all; font-size: 12px;">
               <strong style="color: var(--dossier-blue);">SMILES:</strong> ${safeData(data.structure)}
             </div>
           </div>
 
-          <h3 class="card-h3-divider">2. List Of Structural &amp; Geometrical Isomers</h3>
+          <div class="card-header card-header-divider"><span class="field-label">2. List Of Structural &amp; Geometrical Isomers</span></div>
           <div class="scrollable-area" style="padding-top: 15px;">
             <div style="word-break: break-all; font-size: 12px;">
               <strong style="color: var(--dossier-blue);">Isomeric SMILES:</strong><br> ${safeData(data.isomeric_structure)}<br><br>
@@ -257,7 +257,7 @@ function renderDocumentStyleDossier(data, container) {
         </div>
 
         <div class="bottom-card card-licenses">
-          <h3>Licenses &amp; Taxation</h3>
+          <div class="card-header"><span class="field-label">Licenses &amp; Taxation</span></div>
           <div class="scrollable-area">
             <div>
               <strong style="color: var(--dossier-blue);">Licenses:</strong>
