@@ -13,12 +13,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 <nav class="app-navbar">
                     <div class="navbar-left">
                         <img
-                            src="logo.png"
+                            src="/1.png"
                             alt="Ode Chem LLP"
                             class="navbar-logo"
                             onerror="this.style.display='none'; document.getElementById('navbar-brand-fallback').style.display='inline-block';"
                         />
-                        <span id="navbar-brand-fallback" class="navbar-brand-fallback" style="display:none;">Ode Chem LLP</span>
+                        <span id="navbar-brand-fallback" class="navbar-brand-fallback" style="display:none;"></span>
                     </div>
 
                     <div class="navbar-center">
@@ -209,6 +209,7 @@ function renderDocumentStyleDossier(data, container) {
 
           <div class="grid-cell cell-image">
             ${imageHTML}
+          
           </div>
 
           <div class="grid-cell cell-mol stacked-labels">
