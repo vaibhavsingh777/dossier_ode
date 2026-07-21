@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 placeholder="Enter CAS Number, e.g., 13162-05-5"
                                 required
                             />
-                            <button type="submit" id="generate-dossier-btn" class="btn btn-primary">Generate Dossier</button>
+                            <button type="submit" id="generate-dossier-btn" class="btn btn-primary">Generate Chemical Index</button>
                         </form>
                     </div>
 
