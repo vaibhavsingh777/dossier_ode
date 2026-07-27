@@ -16,6 +16,14 @@
   --text-color: #2c3e50;
   --card-bg: #ffffff;
   --border-color: #e1e4e8;
+
+  /* Shared page-content constraint so the navbar and the dashboard below it
+     always line up, no matter the viewport width. Both the navbar and the
+     page body use this SAME max-width + gutter formula on the OUTER wrapper,
+     and the visible boxes inside (navbar-inner, cards) are simply width:100%
+     of that inset area — that's what keeps them pixel-for-pixel aligned. */
+  --page-max-width: 1680px;
+  --page-gutter: clamp(16px, 5vw, 72px);
 }
 
 *,
@@ -173,23 +181,46 @@ body {
   border: 1px solid rgba(214, 48, 49, 0.2);
 }
 
-/* --- 2. App Navbar (Logo left / CAS search center / Logout right) --- */
+/* --- 2. App Navbar (Logo left / CAS search center / Logout right) ---
+   FIX: previously .app-navbar itself was the full-bleed white bar (edge to
+   edge of the viewport) while .navbar-inner just held gutter-padded content
+   inside it — so the *visible navbar box* was wider than the cards below,
+   even though the logo/search/logout lined up. Now the outer element
+   (.app-navbar) carries the exact same max-width + gutter formula as
+   .dossier-page-body (transparent, just for positioning/inset), and the
+   *visible* box (.navbar-inner: background, border, shadow, radius) is
+   width:100% of that inset area — the same way the cards are width:100%
+   inside .dossier-page-body. That keeps the navbar box and the cards
+   pixel-for-pixel the same width and same left/right edges on every
+   screen size, with zero extra media queries needed for the alignment. */
 .dossier-wrapper {
   background: transparent;
 }
 
 .app-navbar {
+  background: var(--bg-color);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  width: 100%;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: 16px var(--page-gutter) 12px;
+}
+
+.navbar-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  background: #ffffff;
-  padding: 14px clamp(16px, 4vw, 48px);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-  position: sticky;
-  top: 0;
-  z-index: 100;
   flex-wrap: wrap;
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-top: 4px solid var(--header-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  padding: 12px 20px;
 }
 
 .navbar-left {
@@ -200,13 +231,13 @@ body {
 }
 
 .navbar-logo {
-  height: 40px;
+  height: 36px;
   width: auto;
   display: block;
 }
 
 .navbar-brand-fallback {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--dossier-navy);
   letter-spacing: 0.3px;
@@ -274,6 +305,9 @@ body {
 
 @media (max-width: 760px) {
   .app-navbar {
+    padding: 12px var(--page-gutter) 10px;
+  }
+  .navbar-inner {
     flex-direction: column;
     align-items: stretch;
   }
@@ -292,12 +326,14 @@ body {
   }
 }
 
-/* --- 3. Page Body: responsive left/right margins on every screen size --- */
+/* --- 3. Page Body: responsive left/right margins on every screen size ---
+   Uses the same --page-max-width / --page-gutter tokens as .app-navbar
+   so the two always share identical width and horizontal padding. */
 .dossier-page-body {
   width: 100%;
-  max-width: 1680px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: 28px clamp(16px, 5vw, 72px) 64px;
+  padding: 24px var(--page-gutter) 64px;
 }
 
 /* --- 4. Product Identity Header (centered, above & outside the table) --- */

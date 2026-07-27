@@ -11,31 +11,33 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="dossier-wrapper">
 
                 <nav class="app-navbar">
-                    <div class="navbar-left">
-                        <img
-                            src="/1.png"
-                            alt="Ode Chem LLP"
-                            class="navbar-logo"
-                            onerror="this.style.display='none'; document.getElementById('navbar-brand-fallback').style.display='inline-block';"
-                        />
-                        <span id="navbar-brand-fallback" class="navbar-brand-fallback" style="display:none;"></span>
-                    </div>
-
-                    <div class="navbar-center">
-                        <form id="dossier-search-form" class="navbar-search-form">
-                            <input
-                                type="text"
-                                id="cas-input"
-                                aria-label="CAS Registry Number"
-                                placeholder="Enter CAS Number, e.g., 13162-05-5"
-                                required
+                    <div class="navbar-inner">
+                        <div class="navbar-left">
+                            <img
+                                src="/1.png"
+                                alt="Ode Chem LLP"
+                                class="navbar-logo"
+                                onerror="this.style.display='none'; document.getElementById('navbar-brand-fallback').style.display='inline-block';"
                             />
-                            <button type="submit" id="generate-dossier-btn" class="btn btn-primary">Generate Chemical Index</button>
-                        </form>
-                    </div>
+                            <span id="navbar-brand-fallback" class="navbar-brand-fallback" style="display:none;"></span>
+                        </div>
 
-                    <div class="navbar-right">
-                        <button type="button" id="logout-btn" class="btn-logout">Logout</button>
+                        <div class="navbar-center">
+                            <form id="dossier-search-form" class="navbar-search-form">
+                                <input
+                                    type="text"
+                                    id="cas-input"
+                                    aria-label="CAS Registry Number"
+                                    placeholder="Enter CAS Number, e.g., 13162-05-5"
+                                    required
+                                />
+                                <button type="submit" id="generate-dossier-btn" class="btn btn-primary">Generate Chemical Index</button>
+                            </form>
+                        </div>
+
+                        <div class="navbar-right">
+                            <button type="button" id="logout-btn" class="btn-logout">Logout</button>
+                        </div>
                     </div>
                 </nav>
 
@@ -225,7 +227,7 @@ function renderDocumentStyleDossier(data, container) {
 
           <div class="grid-cell cell-hazard">
             <span class="field-label">Hazard Class</span>
-            <div class="field-value">${data.hazard_class ? formatAsList(data.hazard_class) : '<span class="placeholder-text">-</span>'}</div>
+            <div class="field-value"><span class="placeholder-text">-</span></div>
           </div>
 
         </div>

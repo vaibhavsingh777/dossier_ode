@@ -284,7 +284,7 @@ function lookupHsnAndGst(chemicalName, synonymsStr) {
 // PubChem's PUG-View responses are deeply nested Section/Information trees.
 // These helpers safely walk that tree to pull out the text a dossier needs.
 
-// Recursively locate a section by its exact TOCHeading (e.g. "Color/Form", "GHS Classification").
+// Recursively locate a section by its exact TOCHeading (e.g. "Color/Form", "Reactivity Profile").
 function findPubChemSection(node, targetHeading) {
   if (!node) return null;
   if (node.TOCHeading === targetHeading) return node;
@@ -299,8 +299,8 @@ function findPubChemSection(node, targetHeading) {
 }
 
 // Flattens a section's Information[] array into readable text per entry, skipping
-// markup-only placeholders (e.g. GHS pictogram cells, whose "String" is just blank
-// spaces because the real content is the icon URLs in Markup, not the text itself).
+// markup-only placeholders whose "String" is just blank spaces because the real
+// content lives elsewhere (e.g. in Markup) rather than in the text itself.
 function extractInfoEntries(informationArray) {
   if (!Array.isArray(informationArray)) return [];
 
@@ -328,36 +328,6 @@ function findPubChemText(node, targetHeading) {
   return entries.length ? entries[0].text : null;
 }
 
-// GHS Classification is structured differently from simple headings: every contributing
-// source (ECHA, NITE, HSDB, Safe Work Australia, etc.) shares the same "GHS Classification"
-// heading, and each source's rows (Pictogram(s) / Signal / GHS Hazard Statements /
-// Precautionary Statement Codes) share one ReferenceNumber. A plain "first Information
-// item" grab (like findPubChemText above) mostly returns the Pictogram(s) row, whose text
-// is blank space - which is why hazard_class was coming through empty. Instead, group by
-// ReferenceNumber, take the first source (this matches what PubChem's own UI shows by
-// default - see "ShowAtMost: 1" in the section's DisplayControls), and pull that source's
-// Signal + GHS Hazard Statements specifically.
-function findGHSHazardClass(node) {
-  const section = findPubChemSection(node, "GHS Classification");
-  if (!section || !Array.isArray(section.Information)) return null;
-
-  const firstReferenceNumber = section.Information[0]?.ReferenceNumber;
-  const primarySource = section.Information.filter(
-    (info) => info.ReferenceNumber === firstReferenceNumber,
-  );
-
-  const signal = extractInfoEntries(
-    primarySource.filter((info) => info.Name === "Signal"),
-  )[0]?.text;
-
-  const hazardStatements = extractInfoEntries(
-    primarySource.filter((info) => info.Name === "GHS Hazard Statements"),
-  )[0]?.text;
-
-  if (!hazardStatements) return null;
-  return signal ? `${signal} - ${hazardStatements}` : hazardStatements;
-}
-
 // --- Dynamic Dossier API Route ---
 app.get("/api/dossier", requireAuth, async (req, res) => {
   const cas = req.query.cas;
@@ -379,7 +349,6 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
         structure_image: "-",
         synonyms: "-",
         appearance: "-",
-        hazard_class: "-",
         reactivity: "-",
         hsn_code: "-",
         gst_rate: "-",
@@ -400,7 +369,7 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
           // Step 2: Parallel Fetching for Maximum Speed
           // 2A: PUG-REST for strict chemical properties (SMILES, Weight, Formula)
           // 2B: PUG-REST for Synonyms
-          // 2C: PUG-VIEW for rich text (Hazards, Appearance, Reactivity)
+          // 2C: PUG-VIEW for rich text (Appearance, Reactivity)
           const [propRes, synRes, viewRes] = await Promise.all([
             fetch(
               `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${cid}/property/MolecularFormula,MolecularWeight,IUPACName,Title,SMILES,ConnectivitySMILES/JSON`,
@@ -448,7 +417,7 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
             pubChemData.synonyms = synonyms.slice(0, 12).join("; ") || "-";
           }
 
-          // Process PUG-View Text Data (Hazards, Appearance)
+          // Process PUG-View Text Data (Appearance, Reactivity)
           if (viewRes.ok) {
             const viewData = await viewRes.json();
             const rootNode = viewData.Record;
@@ -462,16 +431,6 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
               "-";
             pubChemData.reactivity =
               findPubChemText(rootNode, "Reactivity Profile") || "-";
-
-            // GHS Classification is the primary, structured source for hazard class.
-            // Some records only carry the simpler "Hazard Classes and Categories"
-            // heading instead, so that's kept as a fallback.
-            const ghsHazards = findGHSHazardClass(rootNode);
-            const generalHazards = findPubChemText(
-              rootNode,
-              "Hazard Classes and Categories",
-            );
-            pubChemData.hazard_class = ghsHazards || generalHazards || "-";
           }
 
           // Step 3: HSN code + GST rate, looked up locally from gst.csv/hsn.csv using
@@ -502,7 +461,6 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
       appearance: pubChemData.appearance,
       molecular_formula: pubChemData.molecular_formula,
       molecular_weight: pubChemData.molecular_weight,
-      hazard_class: pubChemData.hazard_class,
       synonyms: pubChemData.synonyms,
       structure_image: pubChemData.structure_image,
       structure: pubChemData.structure,
