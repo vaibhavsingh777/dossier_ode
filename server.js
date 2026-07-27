@@ -280,6 +280,66 @@ function lookupHsnAndGst(chemicalName, synonymsStr) {
   return { hsn_code: match.HSN_CD, gst_rate: validRate };
 }
 
+// --- Synonym Filtering ---
+// PubChem's synonym lists mix real chemical/trade names in with a lot of database
+// bookkeeping IDs - CAS numbers, InChIKeys, DTXSID/DTXCID, SCHEMBL, NSC, source:id
+// tags, etc. Traders don't want to see those on a dossier, so they're stripped out
+// before display. Two layers, in order:
+//   1. An explicit regex blocklist for known ID formats. These patterns are narrow
+//      enough that they will never accidentally match a real chemical name, so
+//      anything caught here is dropped with full confidence.
+//   2. A conservative structural heuristic as a fallback safety net, for ID formats
+//      not covered above (new source databases, etc). It only rejects strings that
+//      have NO space, NO lowercase letter, AND are more than ~30% digits - real
+//      chemical/trade names almost always fail at least one of those conditions, so
+//      this stays a low false-positive check rather than a trigger-happy one.
+// Anything the heuristic rejects is logged separately from the blocklist so new ID
+// formats can be promoted into the explicit blocklist over time.
+const SYNONYM_BLOCKLIST_PATTERNS = [
+  /^\d{2,7}-\d{2}-\d$/, // CAS number, e.g. 626-32-4
+  /^[A-Z]{14}-[A-Z]{10}-[A-Z]$/, // InChIKey, e.g. HPJKLCJJNFVOEM-UHFFFAOYSA-N
+  /^DTX(SID|CID)\d+$/i, // DTXSID / DTXCID
+  /^SCHEMBL\d+$/i, // SCHEMBL registry IDs
+  /^NSC-?\d+$/i, // NSC / NSC-#### registry IDs
+  /:/, // colon-prefixed source tags, e.g. RefChem:1052567
+];
+
+function isKnownJunkSynonym(term) {
+  return SYNONYM_BLOCKLIST_PATTERNS.some((pattern) => pattern.test(term));
+}
+
+// Fallback for ID formats not covered by the explicit blocklist above.
+function looksLikeUnknownId(term) {
+  const hasSpace = /\s/.test(term);
+  const hasLower = /[a-z]/.test(term);
+  if (hasSpace || hasLower) return false; // real names/trade names almost always have one of these
+
+  const digitCount = (term.match(/\d/g) || []).length;
+  const isMostlyDigits = digitCount / term.length > 0.3;
+  return isMostlyDigits;
+}
+
+// Filters a raw PubChem synonym array down to the ones worth showing a trader.
+function cleanSynonyms(synonymList) {
+  const kept = [];
+  for (const raw of synonymList) {
+    const term = (raw || "").trim();
+    if (!term) continue;
+
+    if (isKnownJunkSynonym(term)) continue;
+
+    if (looksLikeUnknownId(term)) {
+      console.log(
+        `Synonym filter: heuristic rejected "${term}" (not yet in explicit blocklist)`,
+      );
+      continue;
+    }
+
+    kept.push(term);
+  }
+  return kept;
+}
+
 // --- PUG-View JSON Helpers ---
 // PubChem's PUG-View responses are deeply nested Section/Information trees.
 // These helpers safely walk that tree to pull out the text a dossier needs.
@@ -414,7 +474,9 @@ app.get("/api/dossier", requireAuth, async (req, res) => {
             const synData = await synRes.json();
             const synonyms =
               synData.InformationList.Information[0].Synonym || [];
-            pubChemData.synonyms = synonyms.slice(0, 12).join("; ") || "-";
+            const filteredSynonyms = cleanSynonyms(synonyms);
+            pubChemData.synonyms =
+              filteredSynonyms.slice(0, 12).join("; ") || "-";
           }
 
           // Process PUG-View Text Data (Appearance, Reactivity)
